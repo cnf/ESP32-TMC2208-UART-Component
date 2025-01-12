@@ -3,7 +3,7 @@
 
 #include "driver/gpio.h"
 #include "driver/uart.h"
-#include "driver/rmt.h"
+#include "driver/rmt_tx.h"
 
 #include "esp_err.h"
 
@@ -16,9 +16,9 @@
 
 #pragma pack(push, 1)
 
-typedef uint8_t tmc2208_regaddr_t;
+//typedef uint8_t tmc2208_regaddr_t;
 
-enum tmc2208_regaddr_t {
+enum tmc2208_regaddr_t : uint8_t {
     TMC2208_REG_GCONF        = 0x00,
     TMC2208_REG_GSTAT        = 0x01,
     TMC2208_REG_IFCNT        = 0x02,
@@ -535,7 +535,8 @@ typedef struct stepper_driver_tmc2208_conf_s {
     uint32_t tx_pin;              /*!< UART Tx Pin number */
     uint32_t baud_rate;           /*!< UART baud rate */
 
-    rmt_channel_t channel;        /*!< RMT channel */
+	rmt_channel_handle_t motor_chan;
+    rmt_encoder_handle_t copy_encoder;
 
     gpio_num_t step_pin;          /*!< Step port number */
     gpio_num_t direction_pin;     /*!< Direction port number */

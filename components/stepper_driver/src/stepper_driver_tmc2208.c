@@ -3,11 +3,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/cdefs.h>
+#include <inttypes.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/uart.h"
 
 #include "esp_log.h"
+#include "esp_err.h"
 
 #include "stepper_driver_tmc2208.h"
 
@@ -38,45 +41,44 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     gpio_reset_pin(tmc2208->driver_config.step_pin);
     gpio_reset_pin(tmc2208->driver_config.direction_pin);
     gpio_reset_pin(tmc2208->driver_config.enable_pin);
-    gpio_reset_pin(tmc2208->driver_config.rx_pin);
-    gpio_reset_pin(tmc2208->driver_config.tx_pin);
 
     gpio_set_direction(tmc2208->driver_config.step_pin, GPIO_MODE_OUTPUT);
     gpio_set_direction(tmc2208->driver_config.direction_pin, GPIO_MODE_OUTPUT);
     gpio_set_direction(tmc2208->driver_config.enable_pin, GPIO_MODE_OUTPUT);
-    gpio_set_direction(tmc2208->driver_config.rx_pin, GPIO_MODE_INPUT);
-    gpio_set_direction(tmc2208->driver_config.tx_pin, GPIO_MODE_OUTPUT);
+
 
     // ---- Configure UART ----
-    uart_config_t uart_config = {
-        .baud_rate = tmc2208->driver_config.baud_rate,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_APB,
-    };
-    ret = uart_driver_install(tmc2208->driver_config.uart_port, UART_FIFO_LEN * 2, 0, 0, NULL, 0);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to install driver: %s (0x%x)", esp_err_to_name(ret), ret);
-        return ret;
-    }
-    ret = uart_param_config(tmc2208->driver_config.uart_port, &uart_config);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to config param: %s (0x%x)", esp_err_to_name(ret), ret);
-        return ret;
-    }
-    ret = uart_set_pin(tmc2208->driver_config.uart_port, tmc2208->driver_config.tx_pin, tmc2208->driver_config.rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set pins: %s (0x%x)", esp_err_to_name(ret), ret);
-        return ret;
-    }
-    uart_flush(tmc2208->driver_config.uart_port);
+	uart_config_t uartConfig;
+	memset(&uartConfig, 0, sizeof(uart_config_t));
+	uartConfig.baud_rate = tmc2208->driver_config.baud_rate;
+	uartConfig.data_bits = UART_DATA_8_BITS;
+	uartConfig.parity = UART_PARITY_DISABLE;
+	uartConfig.stop_bits = UART_STOP_BITS_1;
+	uartConfig.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+	uartConfig.source_clk = UART_SCLK_APB;
+
+	const int uart_buffer_size = (1024 * 2);
+	ESP_ERROR_CHECK(uart_driver_install(tmc2208->driver_config.uart_port, uart_buffer_size, 0, 0, NULL, 0));
+	ESP_ERROR_CHECK(uart_param_config(tmc2208->driver_config.uart_port, &uartConfig));
+	ESP_ERROR_CHECK(uart_set_pin(tmc2208->driver_config.uart_port, tmc2208->driver_config.tx_pin, tmc2208->driver_config.rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+//    uart_flush(tmc2208->driver_config.uart_port);	// Not sure why I would use this?
+
 
     // ---- Configure RMT ----
-    rmt_driver_install(tmc2208->driver_config.channel, 0, 0);
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(tmc2208->driver_config.step_pin, tmc2208->driver_config.channel);
-    rmt_config(&config);
+    const uint32_t resolutionHz = 400000;
+    rmt_tx_channel_config_t txChannelConfig;
+    memset(&txChannelConfig, 0, sizeof(rmt_tx_channel_config_t));
+	txChannelConfig.clk_src = RMT_CLK_SRC_DEFAULT;
+	txChannelConfig.gpio_num = tmc2208->driver_config.step_pin;
+	txChannelConfig.mem_block_symbols = 64;
+	txChannelConfig.resolution_hz = resolutionHz;
+	txChannelConfig.trans_queue_depth = 2;
+
+	ESP_ERROR_CHECK(rmt_new_tx_channel(&txChannelConfig, &tmc2208->driver_config.motor_chan));
+
+    rmt_copy_encoder_config_t copyEncoderCfg;
+    ESP_ERROR_CHECK(rmt_new_copy_encoder(&copyEncoderCfg, &tmc2208->driver_config.copy_encoder));
+	ESP_ERROR_CHECK(rmt_enable(tmc2208->driver_config.motor_chan));
 
     // ---- Configure TMC2208 ----
     gpio_set_level(tmc2208->driver_config.enable_pin, 1); // Disable stepper
@@ -183,32 +185,49 @@ esp_err_t tmc2208_direction(stepper_driver_t *handle, uint8_t direction)
  */
 esp_err_t tmc2208_steps(stepper_driver_t *handle, uint32_t steps, uint32_t signal_duration)
 {
-    esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    // Allocate memory for the RMT items
-    rmt_item32_t* items = (rmt_item32_t*) pvPortMalloc(sizeof(rmt_item32_t) * steps);
-    if (items == NULL) {
-        ESP_LOGE("RMT", "Failed to allocate memory for RMT items");
-        return ESP_FAIL ;
+    // Each pulse in RMT "new driver" is described by rmt_symbol_word_t
+    // We'll build an array of 'steps' items (each item is one HIGH-then-LOW cycle).
+    rmt_symbol_word_t *items = (rmt_symbol_word_t*) pvPortMalloc(steps * sizeof(rmt_symbol_word_t));
+    if (!items) {
+        ESP_LOGE(TAG, "Failed to allocate memory for RMT items");
+        return ESP_ERR_NO_MEM;
     }
 
-    // Configure the RMT items
-    for (int i = 0; i < steps; i++) {
+    // Fill out the items: each pulse is high for signal_duration, then low for signal_duration
+    for (uint32_t i = 0; i < steps; i++) {
         items[i].level0 = 1;
         items[i].duration0 = signal_duration;
         items[i].level1 = 0;
         items[i].duration1 = signal_duration;
     }
 
-    ret = rmt_write_items(tmc2208->driver_config.channel, items, steps, true);
+    // Prepare transmission config
+    // loop_count = 1 => transmit exactly once, no hardware looping
+    // eot_level = 0 => drive output LOW after final pulse
+    rmt_transmit_config_t txConfig = {};
+#ifdef SOC_RMT_SUPPORT_TX_LOOP_COUNT
+    txConfig.loop_count = 1; // Exactly one sequence, i.e., 'steps' pulses
+#endif
 
-    // Free the memory for the RMT items
+    // Start transmission: we give 'items' pointer + its size in bytes
+    esp_err_t ret = rmt_transmit(
+        tmc2208->driver_config.motor_chan,
+        tmc2208->driver_config.copy_encoder,
+        items,
+        steps * sizeof(rmt_symbol_word_t),
+        &txConfig
+    );
+
+    // We can free the items now; the RMT driver has copied them internally
     vPortFree(items);
 
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "rmt_transmit failed, error: %d", ret);
+    }
     return ret;
 }
-
 
 // |================================================================================================ |
 // |                               Velocity Dependent Control                                        |
@@ -285,12 +304,13 @@ esp_err_t tmc2208_set_current(stepper_driver_t *handle, uint16_t milliampere_run
 
     uint32_t cs_run = 32.0 * 1.41421f * ((float)milliampere_run / 1000.0) * ((TMC2208_R_SENSE + 30.0)  / 325.0) - 1;
     uint32_t cs_hold = (cs_run * percent_hold) / 100;
-    ESP_LOGD(TAG, "Calculated values for %d mA: IRUN=%d IHOLD=%d", milliampere_run, cs_run, cs_hold);
+    ESP_LOGD(TAG, "Calculated values for %d mA: IRUN=%d IHOLD=%d", (int)milliampere_run, (int)cs_run, (int)cs_hold);
     if (cs_run < 16) { //  High sensitivity, low sense resistor voltage
         tmc2208->chopconf.reg.vsense = 1;
         cs_run = 32.0 * 1.41421f * ((float)milliampere_run / 1000.0) * ((TMC2208_R_SENSE + 30.0)  / 180.0) - 1;
         cs_hold = (cs_run * percent_hold) / 100;
-        ESP_LOGD(TAG, "Recalculated values for %d mA: IRUN=%d IHOLD=%d", milliampere_run, cs_run, cs_hold);
+		ESP_LOGD(TAG, "Calculated values for %d mA: IRUN=%u IHOLD=%u", 
+             milliampere_run, (unsigned int)cs_run, (unsigned int)cs_hold);
     }
     else {
         tmc2208->chopconf.reg.vsense = 0;
@@ -917,7 +937,11 @@ stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t
     tmc2208->driver_config.rx_pin = (uint32_t)config->rx_pin;
     tmc2208->driver_config.tx_pin = (uint32_t)config->tx_pin;
     tmc2208->driver_config.baud_rate = (uint32_t)config->baud_rate;
-    tmc2208->driver_config.channel = (uint32_t)config->channel;
+
+	// TODO: I am not sure why these are copied as the device must be intialised by the contructor
+    tmc2208->driver_config.motor_chan = config->motor_chan;
+    tmc2208->driver_config.copy_encoder = config->copy_encoder;
+
     tmc2208->driver_config.enable_pin = (gpio_num_t)config->enable_pin;
     tmc2208->driver_config.step_pin = (gpio_num_t)config->step_pin;
     tmc2208->driver_config.direction_pin = (gpio_num_t)config->direction_pin;
