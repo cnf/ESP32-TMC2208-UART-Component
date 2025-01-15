@@ -69,7 +69,7 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
 	ESP_ERROR_CHECK(uart_driver_install(tmc2208->driver_config.uart_port, uart_buffer_size, 0, 0, NULL, 0));
 	ESP_ERROR_CHECK(uart_param_config(tmc2208->driver_config.uart_port, &uartConfig));
 	ESP_ERROR_CHECK(uart_set_pin(tmc2208->driver_config.uart_port, tmc2208->driver_config.tx_pin, tmc2208->driver_config.rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-//    uart_flush(tmc2208->driver_config.uart_port);	// Not sure why I would use this?
+    uart_flush(tmc2208->driver_config.uart_port);
 
 
     // ---- Configure RMT ----
@@ -1059,7 +1059,7 @@ static esp_err_t read_register(stepper_driver_tmc2208_t *tmc2208, tmc2208_datagr
         }
     }
     else {
-        ESP_LOGE(TAG, "Reply datagram corrupt: slave %d addr %d", reply_datagram.msg.slave, reply_datagram.msg.addr.value);
+        ESP_LOGE(TAG, "Reply datagram corrupt: slave %d addr %x", reply_datagram.msg.slave, reply_datagram.msg.addr.value);
         ret = ESP_FAIL;
     }
 
