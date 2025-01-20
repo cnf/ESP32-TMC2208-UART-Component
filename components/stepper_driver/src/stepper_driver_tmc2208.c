@@ -63,7 +63,6 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
 	uartConfig.parity = UART_PARITY_DISABLE;
 	uartConfig.stop_bits = UART_STOP_BITS_1;
 	uartConfig.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-	uartConfig.source_clk = UART_SCLK_APB;
 #if defined(CONFIG_IDF_TARGET_ESP32C6)
 	uartConfig.source_clk = UART_SCLK_RTC;
 #else
