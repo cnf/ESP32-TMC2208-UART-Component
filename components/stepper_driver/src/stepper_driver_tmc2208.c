@@ -1,4 +1,3 @@
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -38,7 +37,7 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    if (tmc2208->driver_config.step_pin!= GPIO_NUM_NC) {
+    if (tmc2208->driver_config.step_pin != GPIO_NUM_NC) {
         gpio_reset_pin(tmc2208->driver_config.step_pin);
     }
     if (tmc2208->driver_config.direction_pin != GPIO_NUM_NC) {
@@ -78,21 +77,22 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
 
 
     // ---- Configure RMT ----
-    const uint32_t resolutionHz = 400000;
-    rmt_tx_channel_config_t txChannelConfig;
-    memset(&txChannelConfig, 0, sizeof(rmt_tx_channel_config_t));
-	txChannelConfig.clk_src = RMT_CLK_SRC_DEFAULT;
-	txChannelConfig.gpio_num = tmc2208->driver_config.step_pin;
-	txChannelConfig.mem_block_symbols = 64;
-	txChannelConfig.resolution_hz = resolutionHz;
-	txChannelConfig.trans_queue_depth = 2;
+	if (tmc2208->driver_config.step_pin != GPIO_NUM_NC) {
+		const uint32_t resolutionHz = 400000;
+		rmt_tx_channel_config_t txChannelConfig;
+		memset(&txChannelConfig, 0, sizeof(rmt_tx_channel_config_t));
+		txChannelConfig.clk_src = RMT_CLK_SRC_DEFAULT;
+		txChannelConfig.gpio_num = tmc2208->driver_config.step_pin;
+		txChannelConfig.mem_block_symbols = 64;
+		txChannelConfig.resolution_hz = resolutionHz;
+		txChannelConfig.trans_queue_depth = 2;
 
-	ESP_ERROR_CHECK(rmt_new_tx_channel(&txChannelConfig, &tmc2208->driver_config.motor_chan));
+		ESP_ERROR_CHECK(rmt_new_tx_channel(&txChannelConfig, &tmc2208->driver_config.motor_chan));
 
-    rmt_copy_encoder_config_t copyEncoderCfg;
-    ESP_ERROR_CHECK(rmt_new_copy_encoder(&copyEncoderCfg, &tmc2208->driver_config.copy_encoder));
-	ESP_ERROR_CHECK(rmt_enable(tmc2208->driver_config.motor_chan));
-
+		rmt_copy_encoder_config_t copyEncoderCfg;
+		ESP_ERROR_CHECK(rmt_new_copy_encoder(&copyEncoderCfg, &tmc2208->driver_config.copy_encoder));
+		ESP_ERROR_CHECK(rmt_enable(tmc2208->driver_config.motor_chan));
+	}
     // ---- Configure TMC2208 ----
     gpio_set_level(tmc2208->driver_config.enable_pin, 1); // Disable stepper
 
@@ -199,6 +199,12 @@ esp_err_t tmc2208_direction(stepper_driver_t *handle, uint8_t direction)
 esp_err_t tmc2208_steps(stepper_driver_t *handle, uint32_t steps, uint32_t signal_duration)
 {
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+	if (tmc2208->driver_config.step_pin == GPIO_NUM_NC) {
+        ESP_LOGE(TAG, "Trying to do RMT steps with no stepper pin defined");
+        return ESP_ERR_INVALID_ARG;
+    }
+
 
     // Each pulse in RMT "new driver" is described by rmt_symbol_word_t
     // We'll build an array of 'steps' items (each item is one HIGH-then-LOW cycle).
