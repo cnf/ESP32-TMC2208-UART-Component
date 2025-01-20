@@ -64,6 +64,12 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
 	uartConfig.stop_bits = UART_STOP_BITS_1;
 	uartConfig.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
 	uartConfig.source_clk = UART_SCLK_APB;
+#elif defined(CONFIG_IDF_TARGET_ESP32C6)
+	uartConfig.source_clk = UART_SCLK_RTC;
+#else
+	uartConfig.source_clk = UART_SCLK_APB;
+#endif
+
 
 	const int uart_buffer_size = (1024 * 2);
 	ESP_ERROR_CHECK(uart_driver_install(tmc2208->driver_config.uart_port, uart_buffer_size, 0, 0, NULL, 0));
