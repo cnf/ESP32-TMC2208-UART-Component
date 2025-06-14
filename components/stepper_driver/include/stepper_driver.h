@@ -76,7 +76,7 @@ struct stepper_driver_s {
   esp_err_t (*dump_register_pwm_scale)(stepper_driver_t *handle);
   esp_err_t (*dump_register_pwm_auto)(stepper_driver_t *handle);
 
-  esp_err_t (*reversed)(stepper_driver_t *handle, uint8_t reversed)
+  esp_err_t (*reversed)(stepper_driver_t *handle, uint8_t reversed);
 };
 
 // |================================================================================================ |
