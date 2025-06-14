@@ -1108,3 +1108,7 @@ static void calcCRC (uint8_t *datagram, uint8_t datagramLength)
     } // for message byte 
 }
 
+esp_err_t stepper_driver_write_register(stepper_driver_t *handle, tmc2208_datagram_t *datagram) {
+  stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+  return write_register(tmc2208, datagram);
+}

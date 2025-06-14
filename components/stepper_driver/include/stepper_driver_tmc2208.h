@@ -586,7 +586,4 @@ typedef struct {
 */
 stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t *config);
 
-inline esp_err_t stepper_driver_write_register(stepper_driver_t *handle, tmc2208_datagram_t *datagram) {
-  stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
-  return write_register(tmc2208, datagram);
-}
+esp_err_t stepper_driver_write_register(stepper_driver_t *handle, tmc2208_datagram_t *datagram)
