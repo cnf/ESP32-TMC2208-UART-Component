@@ -16,12 +16,11 @@
 static const char *TAG = "tmc2208";
 
 // Forward declarations
-static void byteswap (uint8_t data[4]);
-static void calcCRC (uint8_t *datagram, uint8_t datagramLength);
-static esp_err_t write_register_safe (stepper_driver_tmc2208_t *driver, tmc2208_datagram_t *reg);
-static void write_register (stepper_driver_tmc2208_t *driver, tmc2208_datagram_t *reg);
-static esp_err_t read_register (stepper_driver_tmc2208_t *driver, tmc2208_datagram_t *reg);
-
+// static void byteswap (uint8_t data[4]);
+// static void calcCRC (uint8_t *datagram, uint8_t datagramLength);
+// static esp_err_t write_register_safe (stepper_driver_tmc2208_t *driver, tmc2208_datagram_t *reg);
+// static void write_register (stepper_driver_tmc2208_t *driver, tmc2208_datagram_t *reg);
+// static esp_err_t read_register (stepper_driver_tmc2208_t *driver, tmc2208_datagram_t *reg);
 
 // |================================================================================================ |
 // |                                           Initialisation                                        |
