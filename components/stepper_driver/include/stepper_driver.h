@@ -84,6 +84,8 @@ struct stepper_driver_s {
     esp_err_t (*dump_register_mscuract)(stepper_driver_t *handle);
     esp_err_t (*dump_register_pwm_scale)(stepper_driver_t *handle);
     esp_err_t (*dump_register_pwm_auto)(stepper_driver_t *handle);
+
+    esp_err_t (*write_register)(stepper_driver_t *handle, tmc2208_datagram_t *datagram)
 };
 
 
@@ -157,5 +159,4 @@ esp_err_t stepper_driver_dump_register_mscuract(stepper_driver_t *handle);
 esp_err_t stepper_driver_dump_register_pwm_scale(stepper_driver_t *handle);
 esp_err_t stepper_driver_dump_register_pwm_auto(stepper_driver_t *handle);
 
-
-
+esp_err_t stepper_driver_write_register(stepper_driver_t *handle, tmc2208_datagram_t *datagram)

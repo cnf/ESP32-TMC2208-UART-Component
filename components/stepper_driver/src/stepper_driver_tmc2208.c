@@ -950,6 +950,7 @@ stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t
     tmc2208->parent.dump_register_pwm_scale = tmc2208_dump_register_pwm_scale;
     tmc2208->parent.dump_register_pwm_auto = tmc2208_dump_register_pwm_auto;
 
+    tmc2208->parent.write_register = stepper_driver_write_register;
 
     tmc2208->driver_config.uart_port = (uart_port_t)config->uart_port;
     tmc2208->driver_config.rx_pin = (uint32_t)config->rx_pin;
@@ -1108,7 +1109,7 @@ static void calcCRC (uint8_t *datagram, uint8_t datagramLength)
     } // for message byte 
 }
 
-esp_err_t stepper_driver_write_register(stepper_driver_t *handle, tmc2208_datagram_t *datagram) {
+esp_err_t tmc2208_write_register(stepper_driver_t *handle, tmc2208_datagram_t *datagram) {
   stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
   return write_register(tmc2208, datagram);
 }

@@ -585,5 +585,3 @@ typedef struct {
 *      step motor instance or NULL
 */
 stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t *config);
-
-esp_err_t stepper_driver_write_register(stepper_driver_t *handle, tmc2208_datagram_t *datagram)
