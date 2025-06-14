@@ -1003,7 +1003,7 @@ static esp_err_t write_register_safe(stepper_driver_tmc2208_t *tmc2208, tmc2208_
     read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->ifcnt);
     ifcnt_after = tmc2208->ifcnt.reg.count;
 
-    bool ok = ifcnt_after - ifcnt_pre == 1;
+    uint8_t ok = ifcnt_after - ifcnt_pre == 1;
 
     if (ok) {
         return ESP_OK;
@@ -1109,7 +1109,7 @@ static void calcCRC (uint8_t *datagram, uint8_t datagramLength)
     } // for message byte 
 }
 
-esp_err_t tmc2208_reversed(stepper_driver_t *handle, bool reversed) {
+esp_err_t tmc2208_reversed(stepper_driver_t *handle, uint8_t reversed) {
   esp_err_t ret = ESP_OK;
 
   stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
